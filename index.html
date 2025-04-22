@@ -2,48 +2,78 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Posts</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #f5f5f5;
-            height: 100vh;
-            overflow: hidden;
-            font-family: sans-serif;
-        }
-        .sticker {
-      position: absolute;
-      width: 220px;
-      padding: 15px;
-      box-shadow: 0 5px 10px rgba(0,0,0,0.15);
-      border-radius: 10px;
-      cursor: move;
-      user-select: none;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Posts</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      height: 100vh;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
-    .yellow { background-color: #fff89a; }
-    .green { background-color: #c6f6d5; }
-    .blue { background-color: #bee3f8; }
-
     button {
-      margin: 10px;
+      margin: 20px;
       padding: 10px 20px;
       font-weight: bold;
       cursor: pointer;
     }
-    </style>
+
+    #container {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+      justify-content: center;
+      align-items: flex-start;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sticker {
+      position: absolute;
+      padding: 15px;
+      width: 220px;
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+      border-radius: 10px;
+      user-select: none;
+      background-color: #fff;
+      transition: transform 0.2s;
+      cursor: move;
+      z-index: 1;
+    }
+
+    .sticker:hover {
+      transform: scale(1.03);
+    }
+
+    .yellow {
+      background-color: #fff89a;
+    }
+
+    .green {
+      background-color: #c6f6d5;
+    }
+
+    .blue {
+      background-color: #bee3f8;
+    }
+  </style>
 </head>
 
 <body>
-    <button onclick="addSticker()"> Add Job</button>
-    <div id="container"></div>
-    <script>
+  <button onclick="addSticker()">Add Job</button>
+  <div id="container"></div>
+
+  <script>
     const container = document.getElementById('container');
     const colors = ['yellow', 'green', 'blue'];
-    let zIndexCounter = 1;
 
     const savedJobs = JSON.parse(localStorage.getItem('jobs')) || [];
 
@@ -64,15 +94,28 @@
 
     function renderJobs(jobs) {
       container.innerHTML = '';
-      jobs.forEach(job => {
+      jobs.forEach((job, index) => {
         const sticker = document.createElement('div');
-        sticker.classList.add('sticker', getRandomColor());
+        const stickerColor = job.color || getRandomColor();
+        sticker.classList.add('sticker', stickerColor);
         sticker.innerHTML = `<h3>${job.title}</h3><p>${job.company}</p>`;
-        sticker.style.left = `${Math.random() * (window.innerWidth - 240)}px`;
-        sticker.style.top = `${Math.random() * (window.innerHeight - 180)}px`;
-        sticker.style.zIndex = ++zIndexCounter;
+        
+        const stickerWidth = 240;
+        const stickerHeight = 160;
+        const gap = 20;
+
+        const containerWidth = window.innerWidth;
+        const columns = Math.floor(containerWidth / (stickerWidth + gap));
+
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+
+        sticker.style.left = `${col * (stickerWidth + gap)}px`;
+        sticker.style.top = `${row * (stickerHeight + gap)}px`;
+
         makeDraggable(sticker);
-        container.prepend(sticker);
+
+        container.appendChild(sticker);
       });
     }
 
@@ -83,7 +126,8 @@
       const company = prompt("Enter the job company:");
       if (!company) return;
 
-      const job = { title, company };
+      const color = getRandomColor();
+      const job = { title, company, color };
       savedJobs.unshift(job);
       localStorage.setItem('jobs', JSON.stringify(savedJobs));
       renderJobs(savedJobs);
@@ -91,29 +135,60 @@
 
     function makeDraggable(el) {
       let offsetX = 0, offsetY = 0, isDragging = false;
+      let originalX, originalY;
 
-      el.onmousedown = function(e) {
+      el.onmousedown = function (e) {
         isDragging = true;
         offsetX = e.clientX - el.offsetLeft;
         offsetY = e.clientY - el.offsetTop;
-        el.style.zIndex = ++zIndexCounter;
+        originalX = el.offsetLeft;
+        originalY = el.offsetTop;
 
-        document.onmousemove = function(e) {
+        el.style.zIndex = 2;
+
+        document.onmousemove = function (e) {
           if (!isDragging) return;
           el.style.left = `${e.clientX - offsetX}px`;
           el.style.top = `${e.clientY - offsetY}px`;
         };
 
-        document.onmouseup = function() {
+        document.onmouseup = function () {
           isDragging = false;
+          el.style.zIndex = 1;
           document.onmousemove = null;
           document.onmouseup = null;
+
+          if (isOverlapping(el)) {
+            // Reset position if overlapping
+            el.style.left = `${originalX}px`;
+            el.style.top = `${originalY}px`;
+          }
         };
       };
     }
 
+    function isOverlapping(dragged) {
+      const stickers = document.querySelectorAll('.sticker');
+      const draggedRect = dragged.getBoundingClientRect();
+
+      for (const other of stickers) {
+        if (other === dragged) continue;
+
+        const rect = other.getBoundingClientRect();
+        const overlapping = !(
+          draggedRect.right < rect.left ||
+          draggedRect.left > rect.right ||
+          draggedRect.bottom < rect.top ||
+          draggedRect.top > rect.bottom
+        );
+
+        if (overlapping) return true;
+      }
+      return false;
+    }
+
     renderJobs(savedJobs);
-    </script>
+  </script>
 </body>
 
 </html>
